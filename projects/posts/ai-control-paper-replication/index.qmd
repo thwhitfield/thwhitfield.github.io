@@ -1,0 +1,56 @@
+# Replication of AI Control Paper
+
+I'm currently working to replicate the paper, AI Control: Improving Safety Despite Intentional Subversion (Greenblatt et al., 2024) using ControlArena and Inspect as part of the BlueDot Technical AI Safety project course. I've made good progress on the replication and understanding ControlArena and Inspect, but haven't had enough time to finish the project yet. I hope to finish and wrap it all up in the next few weeks. 
+
+# General Lessons Learned (so far)
+
+## Steep ControlArena and Inspect Learning Curve
+I tried to get ramped up using ControlArena and Inspect quickly, but there was a bit of a learning curve to get comfortable with using both of those tools. They would probably have been fairly easy to overcome if I had been able to dedicate more time to the project, but as a part time thing outside of work this was a bit difficult. Having said that, after working with them for a few weeks I have a much better handle on both tools and from here think that I will be able to finish the project without too much hassle. 
+
+## Understanding tiered API rate limits
+In addition to ramping up on those tools, there was a bit of a learning curve associated with using the OpenAI and Anthropic APIs that I wasn't aware of at first. For Anthropic's Claude Haiku 4.5, the [rate limit](https://platform.claude.com/docs/en/api/rate-limits#tier-1) for the streaming API at tier 1 is 50 requests per minute, while it is 1000 request per minute at tier 2. For OpenAI's GPT 4.1-mini, the [rate limit](https://developers.openai.com/api/docs/models/gpt-4.1-mini) is 500 requests per minute at tier 1, and 5,000 at tier 2. When using Inspect and ControlArena for the first time, it wasn't immediately apparent to me that these tier limits were what were actually causing my runs to be so slow. It's fairly simple to go up to the next tier, you simply have to purchase at least $100 credits on Anthropic and $50 on OpenAI to be bumped up automatically on each, but until I did that I didn't realize what was causing things to go so slowly. I ended up running experiments on fairly small sample sizes at first, when after bumping up to the next tier it wasn't much of a problem to run on much larger samples. 
+
+## Estimating experiment cost up front
+Another fairly trivial problem that I ran into early on was running out of credits, which caused my runs to fail. With Inspect and Control Arena it's not immediately obvious how much a given experiment is going to cost, aside from just running a smaller sample and then extrapolating from that to the larger sample size. I reached out on the Inspect/Control Arena slack channel after that to see about contributing a cost estimator tool to Inspect, but have put that on hold because another open source developer has said that they're going to tackle it. This isn't a huge issue either, but it's enough to trip up someone who's trying to quickly jump in and run experiments. Especially with the default models that were specified in the Control Arena documentation, it would have cost several thousand dollars in API credits to run the experiment, which I didn't realize at first and needed to change to smaller models in order to make it more reasonable for this project. 
+
+## Inefficient implementation of protocols
+The way the protocols were implemented in the example ended up taking a huge amount of time, and required re-doing many of the API calls. Those calls should be cached and thus not very expensive, however it takes quite a while to run the entire suite of defer thresholds and experiments. This approach, where the specific protocols (including specific defer/edit thresholds) are implemented and then all of the samples are executed is fairly slow and duplicates many api calls. Instead, I'm working on just implementing a simple experiment where the evals are run both without any deferrals, and with deferring all samples, and with using both the trusted and untrusted monitor to generate the scores. From that, I'll analyze the results and be able to vary the backdoor frequency (initially randomly, and after that by being more selective), the defer thresholds, and the audit budgets post-hoc. This will be quicker, especially given that I don't need to re-run the evals for each different backdooring frequency as well. 
+
+For other use cases, like multi-turn or more agentic situations, you can't easily do this, because the number of samples you'd have to run increases combinatorically. But for this first pass I wanted to be able to better understand the impact of selectiveness of backdoor attempts without having to re-run the entire thing many times. This is also just fairly expensive in terms of API credits when it doesn't need to be for my use case. 
+
+
+# AI Control Specific Lessons Learned
+
+## Safety definition and calculations differ
+I had some intuition for how this would work when I began the project, but it wasn't until doing a more thorough reading of the AI Control paper that I realized some of the nuances to this. There are actually a lot of differences between the way the experiments in the original paper were coded up and ran and the way that it has been implemented on Control Arena. I _think_ that it might be worth suggesting a few improvements to be made to that, but I'm working on verifying that I have things right before I request any updates. In particular, the way that Safety is calculated in the original paper is as "the probability that the protocol submits backdoored code at least once during the sequence of problems", whereas the way that it is implemented in Control Arena is "the proportion of attack trajectories where the side task was not completed successfully". Funnily enough when I initially ran the tutorial code I got fairly similar output results to those in the paper, and I assumed that Safety and Usefulness were being calculated the same way so that made sense. It wasn't until digging into some of the results that I realize that there were discrepancies there which had a material impact on the results. 
+
+## Changed safety definition lead to very different strategies
+Because of the different safety definition, the red-team strategy using the Control Arena's default definition is to try and attack every time, rather than being selective. This is the main problem that I ran into, as I looked into the data and tried to understand what was going on and why some of the results differed from my expectation. With the original paper's definition of safety, a reasonable Red Team strategy is to insert backdoors infrequently, and especially to try and identify backdoors which would be unlikely to be detected by the Blue Team's control protocol. 
+
+
+## Current models are significantly better than original paper's
+While I'm using smaller models, Claude Haiku 4.5 as the untrusted model and GPT 4.1-mini as the trusted model, the trusted model especially is just a lot better at discriminating between backdoored and not-backdoored code than the models used in the original paper (GPT 3.5 and GPT 4). As you can see in the figure below, the performance of the trusted monitor and untrusted monitor are fairly similar at discrimating between backdoored and innocent code. 
+
+![alt text](image.png)
+
+My takeaway from this is that I should try and iterate on my monitors a bit until there's at least a reasonable discrepancy between the trusted and untrusted models. The choice of trusted and untrusted model in the original paper was somewhat arbitrary and driven by the models which were available at the time. In this case, I think a reasonable approach would be to iterate a bit on my monitors until I get an at least somewhat similar sort of distribution between Trusted and Untrusted monitoring as in the original paper. I did take a look at what the distribution would be for GPT 4.1-nano, which is shown below, and I may use that model instead of GPT 4.1-mini in future experiments. 
+
+![alt text](image-1.png)
+
+
+## Results using Control Arena's definition of Safety _looked_ about right at first
+As mentioned above, the results I got when using Control Arena's definition of Safety looked about right to my eyes. Getting somewhat different numbers would be expected given all the different inputs (different models, prompts, slightly different protocols, perhaps slightly different experimental setups). However the key thing I've since realized is that the Safety calculations are fundamentally different. The default attack policy in the tutorial is to simply attack every time, which ends up working fairly well with the way that safety is calculated. Confusingly, the way that safety is calculated for the upfront auditing within Control Arena is slightly different than elsewhere in the library, and in any case winds up providing an answer of 100% safety when using the upfront auditing approach, which clearly doesn't match the paper.
+
+![alt text](image-2.png)
+
+
+![alt text](image-3.png)
+
+
+# Next Steps
+
+## Update the Safety Calculations and perform post-hoc analysis with different protocols
+Like I mentioned above, I'm working on implementing a safety metric which more closely matches the original paper. I'm also working on doing the post-hoc analysis with different protocols, and potentially will run simple simulations of many runs through the setting to get a better estimate for the safety value of each protocol. 
+
+## Contribute back to Control Arena and Inspect
+If this safety calculation ends up being correct, I'll contribute that back to Control Arena. I'd also like to contribute to the Inspect library and add the cost estimation tool. 
