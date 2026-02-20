@@ -1,6 +1,5 @@
 _site/
-.sass-cache/
-.jekyll-cache/
-.jekyll-metadata
-Gemfile.lock
-.bundle/
+.quarto/
+
+/.quarto/
+**/*.quarto_ipynb
