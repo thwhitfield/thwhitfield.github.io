@@ -6,10 +6,14 @@ permalink: /projects/
 
 # Projects
 
-<!-- Add your projects below. Here's an example format: -->
+{% assign project_posts = site.categories.projects %}
+{% if project_posts.size > 0 %}
+{% for post in project_posts %}
+## [{{ post.title }}]({{ post.url }})
+<small>{{ post.date | date: "%B %d, %Y" }}</small>
 
-## Project Name
-
-A brief description of the project.
-
-[View on GitHub](https://github.com/thwhitfield)
+{{ post.excerpt }}
+{% endfor %}
+{% else %}
+No project posts yet.
+{% endif %}
