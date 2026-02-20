@@ -1,0 +1,10 @@
+title: Travis Whitfield
+description: Personal site and project portfolio
+author:
+  name: Travis Whitfield
+
+theme: minima
+
+header_pages:
+  - about.md
+  - projects.md

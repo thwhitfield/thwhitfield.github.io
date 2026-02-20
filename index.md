@@ -1,3 +1,10 @@
-# Travis Whitfield Portfolio
+---
+layout: home
+title: Home
+---
 
-Test out the functionality
+# Welcome
+
+I'm Travis Whitfield. Welcome to my personal site.
+
+Check out my [projects](/projects) or learn more [about me](/about).
